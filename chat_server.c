@@ -11,6 +11,8 @@
 
 #include "chat_server.h"
 
+pthread_mutex_t mutex;
+
 chat_user_t *head = NULL;
 chat_user_t *tail = NULL;
 
@@ -53,13 +55,16 @@ void *client_thread(void *param) {
     }
 
     // add user to chat
-    if (head == NULL) {
+    pthread_mutex_lock(&mutex);
+    if (head == NULL)
+    {
         head = user;
     }
     else {
         tail->next = user;
     }
     tail = user;
+    pthread_mutex_unlock(&mutex);
 
     printf("[%s] User '%s' joined.\n", user->ipAddr, user->username);
 
