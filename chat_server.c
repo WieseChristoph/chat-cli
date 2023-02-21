@@ -29,24 +29,11 @@ void *client_thread(void *param) {
 
     printf("[%s] Accepted connection.\n", user->ipAddr);
 
-    // send username prompt to client
-    char usernamePrompt[] = "Type username:\n";
-    bytesSend = send(clientThreadParams->socket, usernamePrompt, strlen(usernamePrompt), 0);
-    if (bytesSend == -1) {
-        printf("ERROR: Send on client socket failed with %s\n", strerror(errno));
-        close(clientThreadParams->socket);
-
-        free(user);
-        free(clientThreadParams->socketAddr);
-        free(clientThreadParams);
-        pthread_exit(0);
-    }
-
     // receive username from client
-    bytesReceived = recv(clientThreadParams->socket, user->username, sizeof(user->username), 0);
+    bytesReceived = recv(user->socket, user->username, sizeof(user->username), 0);
     if (bytesReceived == -1) {
         printf("ERROR: Receive on client socket failed with %s\n", strerror(errno));
-        close(clientThreadParams->socket);
+        close(user->socket);
 
         free(user);
         free(clientThreadParams->socketAddr);
@@ -70,13 +57,13 @@ void *client_thread(void *param) {
 
     // chat loop
     while (1) {
-        bzero(&message, 0);
+        bzero(&message, sizeof(message));
 
         // receive message from client
-        bytesReceived = recv(clientThreadParams->socket, message, sizeof(message), 0);
+        bytesReceived = recv(user->socket, message, sizeof(message), 0);
         if (bytesReceived == -1) {
             printf("ERROR: Receive on client socket failed with %s\n", strerror(errno));
-            close(clientThreadParams->socket);
+            close(user->socket);
 
             free(clientThreadParams->socketAddr);
             free(clientThreadParams);
@@ -87,7 +74,7 @@ void *client_thread(void *param) {
 
         // create chat message
         char chatMessage[IP_ADDRESS_LENGTH + USERNAME_LENGTH + MESSAGE_LENGTH + 5];
-        snprintf(chatMessage, sizeof(chatMessage), "[%s:%s] %s\n", user->ipAddr, user->username, message);
+        snprintf(chatMessage, sizeof(chatMessage), "[%s:%s] %s", user->ipAddr, user->username, message);
 
         // send chat message to all users
         chat_user_t *currUser = head;
@@ -95,7 +82,7 @@ void *client_thread(void *param) {
             bytesSend = send(currUser->socket, chatMessage, strlen(chatMessage), 0);
             if (bytesSend == -1) {
                 printf("ERROR: Send on client socket failed with %s\n", strerror(errno));
-                close(clientThreadParams->socket);
+                close(user->socket);
 
                 free(clientThreadParams->socketAddr);
                 free(clientThreadParams);
@@ -108,8 +95,8 @@ void *client_thread(void *param) {
     printf("[%s] Closing socket.\n", user->ipAddr);
 
     // block read, write and close socket
-    shutdown(clientThreadParams->socket, SHUT_RDWR);
-    close(clientThreadParams->socket);
+    shutdown(user->socket, SHUT_RDWR);
+    close(user->socket);
 
     free(clientThreadParams->socketAddr);
     free(clientThreadParams);
@@ -159,7 +146,7 @@ int chat_serve(int port) {
         clientThreadParams->socketAddr = clientAddr;
         unsigned clientAddrLen = sizeof(clientAddr);
 
-        // Block until a client wants to connect
+        // block until a client wants to connect
         clientThreadParams->socket = accept(listenSocket, (struct sockaddr*) clientAddr, &clientAddrLen);
         if (clientThreadParams->socket == -1) {
             printf("ERROR: Accept on listen socket failed with %s\n", strerror(errno));
